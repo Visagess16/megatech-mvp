@@ -2,25 +2,9 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 import calendar
-from financeiro import inserir_servico, servico_existe
 from database import criar_tabelas
-from financeiro import (
-    inserir_cliente,
-    listar_clientes,
-    inserir_servico,
-    listar_servicos_executados,
-    inserir_despesa,
-    listar_despesas,
-    listar_alertas_manutencao,
-    inserir_agenda,
-    listar_agenda,
-    atualizar_status_agenda,
-    listar_agenda_mes,
-    resumo_financeiro_periodo,
-    dados_grafico_periodo,
-    listar_servicos_periodo,
-    listar_despesas_periodo,
-)
+from financeiro import *
+
 
 # =================================================
 # ================= ESTADO GLOBAL =================
