@@ -187,51 +187,85 @@ with abas[5]:
         st.warning("Cadastre clientes primeiro.")
         st.stop()
 
+    # ---------- CLIENTES ----------
     clientes_dict = {
         f"{row['id']} - {row['nome']}": int(row["id"])
         for _, row in clientes_df.iterrows()
     }
 
-    dados = st.session_state.agendar_alerta
+    # ---------- DADOS VINDOS DO ALERTA ----------
+    dados = st.session_state.get("agendar_alerta")
 
     cliente_padrao = None
     descricao_padrao = ""
 
-    if dados is not None and "servico_id" in dados:
-        df_cliente = buscar_cliente_por_servico(dados["servico_id"])
+    if isinstance(dados, dict):
+        cliente_id_alerta = dados.get("cliente_id")
+        cliente_nome_alerta = dados.get("cliente_nome")
 
-        if not df_cliente.empty:
-            cliente_id = int(df_cliente.iloc[0]["id"])
-            cliente_nome = df_cliente.iloc[0]["nome"]
-            cliente_padrao = f"{cliente_id} - {cliente_nome}"
+        if cliente_id_alerta and cliente_nome_alerta:
+            cliente_padrao = f"{cliente_id_alerta} - {cliente_nome_alerta}"
 
-    descricao_padrao = dados.get("descricao", "")
+        descricao_padrao = dados.get("descricao", "")
 
+    lista_clientes = list(clientes_dict.keys())
+    index_cliente = (
+        lista_clientes.index(cliente_padrao)
+        if cliente_padrao in lista_clientes
+        else 0
+    )
 
-
-    lista = list(clientes_dict.keys())
-    idx = lista.index(cliente_padrao) if cliente_padrao in lista else 0
-
+    # ---------- FORMULÁRIO ----------
     with st.form("form_agenda", clear_on_submit=True):
-        data = st.date_input("Data")
+        data = st.date_input("Data", value=date.today())
         horario = st.text_input("Horário")
 
-        cliente_label = st.selectbox("Cliente", lista, index=idx)
+        cliente_label = st.selectbox(
+            "Cliente",
+            lista_clientes,
+            index=index_cliente
+        )
+
         cliente_id = clientes_dict[cliente_label]
         cliente_nome = cliente_label.split(" - ", 1)[1]
 
-        descricao = st.text_input("Descrição", value=descricao_padrao)
-        valor = st.number_input("Valor (R$)", min_value=0.0, step=10.0)
-        status = st.selectbox("Status", ["Agendado", "Confirmar Agendamento", "Concluída"])
+        descricao = st.text_input(
+            "Descrição",
+            value=descricao_padrao
+        )
+
+        valor = st.number_input(
+            "Valor (R$)",
+            min_value=0.0,
+            step=10.0
+        )
+
+        status = st.selectbox(
+            "Status",
+            ["Agendado", "Confirmar Agendamento", "Concluída"]
+        )
 
         salvar = st.form_submit_button("Salvar")
 
+    # ---------- SALVAR ----------
     if salvar:
-        inserir_agenda(data, horario, cliente_nome, cliente_id, descricao, valor, status.lower())
+        inserir_agenda(
+            data,
+            horario,
+            cliente_nome,
+            cliente_id,
+            descricao,
+            valor,
+            status.lower()
+        )
+
+        # limpa o estado do alerta
         st.session_state.agendar_alerta = None
+
         st.success("Agendamento salvo!")
         st.rerun()
 
+    # ---------- LISTAGEM ----------
     st.divider()
     st.subheader("📋 Agenda Cadastrada")
     st.dataframe(listar_agenda(), use_container_width=True)
