@@ -3,8 +3,6 @@ import pandas as pd
 from datetime import date
 import calendar
 from financeiro import inserir_servico, servico_existe
-
-
 from database import criar_tabelas
 from financeiro import (
     inserir_cliente,
