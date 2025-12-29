@@ -1,6 +1,7 @@
 import pandas as pd
 from datetime import date, timedelta
 from database import conectar
+from datetime import datetime, timedelta, date
 
 
 # =================================================
@@ -203,11 +204,12 @@ def listar_agenda():
     conn = conectar()
     df = pd.read_sql(
         """
-        SELECT
+        SELECT 
             a.id,
             a.data,
             a.horario,
-            a.cliente,
+            a.cliente_id,
+            c.nome AS cliente,
             a.descricao,
             a.valor,
             a.status,
@@ -216,12 +218,13 @@ def listar_agenda():
             c.observacoes
         FROM agenda a
         LEFT JOIN clientes c ON c.id = a.cliente_id
-        ORDER BY a.data, a.horario
+        ORDER BY a.data DESC
         """,
-        conn,
+        conn
     )
     conn.close()
     return df
+
 
 
 def listar_agenda_mes(ano, mes):
@@ -261,6 +264,63 @@ def atualizar_status_agenda(id_agenda, status):
     )
     conn.commit()
     conn.close()
+
+
+def inserir_servico(cliente_id, descricao, valor, data_servico):
+    conn = conectar()
+
+    # 🔹 garante que a data é date
+    if isinstance(data_servico, str):
+        data_servico = datetime.strptime(data_servico, "%Y-%m-%d").date()
+
+    proxima_manutencao = data_servico + timedelta(days=120)
+
+    conn.execute(
+        """
+        INSERT INTO servicos (
+            cliente_id,
+            descricao,
+            valor,
+            data_servico,
+            proxima_manutencao
+        )
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            cliente_id,
+            descricao,
+            valor,
+            data_servico,
+            proxima_manutencao
+        )
+    )
+
+    conn.commit()
+    conn.close()
+
+
+
+def servico_existe(cliente_id, descricao, data_servico):
+    conn = conectar()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT 1
+        FROM servicos
+        WHERE cliente_id = ?
+          AND descricao = ?
+          AND data_servico = ?
+        LIMIT 1
+        """,
+        (cliente_id, descricao, str(data_servico))
+    )
+
+    existe = cur.fetchone() is not None
+    conn.close()
+    return existe
+
+
 
 
 # =================================================
