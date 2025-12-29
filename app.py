@@ -193,6 +193,8 @@ with abas[5]:
         for _, row in clientes_df.iterrows()
     }
 
+    lista_clientes = list(clientes_dict.keys())
+
     # ---------- DADOS VINDOS DO ALERTA ----------
     dados = st.session_state.get("agendar_alerta")
 
@@ -202,13 +204,11 @@ with abas[5]:
     if isinstance(dados, dict):
         cliente_id_alerta = dados.get("cliente_id")
         cliente_nome_alerta = dados.get("cliente_nome")
+        descricao_padrao = dados.get("descricao", "")
 
         if cliente_id_alerta and cliente_nome_alerta:
             cliente_padrao = f"{cliente_id_alerta} - {cliente_nome_alerta}"
 
-        descricao_padrao = dados.get("descricao", "")
-
-    lista_clientes = list(clientes_dict.keys())
     index_cliente = (
         lista_clientes.index(cliente_padrao)
         if cliente_padrao in lista_clientes
