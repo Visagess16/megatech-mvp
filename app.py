@@ -2,21 +2,46 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 import calendar
+from financeiro import inserir_servico, servico_existe
+
 
 from database import criar_tabelas
-from financeiro import *
+from financeiro import (
+    inserir_cliente,
+    listar_clientes,
+    inserir_servico,
+    listar_servicos_executados,
+    inserir_despesa,
+    listar_despesas,
+    listar_alertas_manutencao,
+    inserir_agenda,
+    listar_agenda,
+    atualizar_status_agenda,
+    listar_agenda_mes,
+    resumo_financeiro_periodo,
+    dados_grafico_periodo,
+    listar_servicos_periodo,
+    listar_despesas_periodo,
+)
 
+# =================================================
 # ================= ESTADO GLOBAL =================
+# =================================================
 if "agendar_alerta" not in st.session_state:
     st.session_state.agendar_alerta = None
 
+# =================================================
+# ================= CORES =========================
+# =================================================
 STATUS_CORES = {
     "agendado": "#4CAF50",
     "confirmar agendamento": "#FFC107",
     "concluída": "#2196F3"
 }
 
-# ================= INIT =================
+# =================================================
+# ================= INIT ==========================
+# =================================================
 criar_tabelas()
 
 st.set_page_config(
@@ -122,10 +147,9 @@ with abas[3]:
 
     vencidas, a_vencer = listar_alertas_manutencao(dias)
 
-    st.subheader("🚨 Manutenções Vencidas")
-
+    st.subheader("🚨 Vencidas")
     if vencidas.empty:
-        st.success("Nenhuma manutenção vencida 🎉")
+        st.success("Nenhuma vencida 🎉")
     else:
         for _, row in vencidas.iterrows():
             st.markdown(
@@ -139,12 +163,11 @@ with abas[3]:
 
             if st.button("🗓️ Agendar agora", key=f"ag_{row['id']}"):
                 st.session_state.agendar_alerta = {
-                    "cliente_id": row["id"],
+                    "cliente_id": row["cliente_id"],
                     "cliente_nome": row["cliente"],
                     "descricao": row["descricao"]
                 }
-                st.success("Vá para a aba Agenda para concluir o agendamento.")
-
+                st.success("Vá para a aba Agenda.")
             st.divider()
 
     st.subheader("⏳ A Vencer")
@@ -176,8 +199,15 @@ with abas[4]:
         st.divider()
         st.dataframe(dados_grafico_periodo(inicio, fim), use_container_width=True)
 
+        st.divider()
+        col_t1, col_t2 = st.columns(2)
+        with col_t1:
+            st.dataframe(listar_servicos_periodo(inicio, fim), use_container_width=True)
+        with col_t2:
+            st.dataframe(listar_despesas_periodo(inicio, fim), use_container_width=True)
+
 # =================================================
-# ================= AGENDA ========================
+# ================= AGENDA (COM CARDS) ============
 # =================================================
 with abas[5]:
     st.subheader("📅 Agenda de Manutenções")
@@ -187,88 +217,88 @@ with abas[5]:
         st.warning("Cadastre clientes primeiro.")
         st.stop()
 
-    # ---------- CLIENTES ----------
     clientes_dict = {
         f"{row['id']} - {row['nome']}": int(row["id"])
         for _, row in clientes_df.iterrows()
     }
-
-    lista_clientes = list(clientes_dict.keys())
-
-    # ---------- DADOS VINDOS DO ALERTA ----------
-    dados = st.session_state.get("agendar_alerta")
-
-    cliente_padrao = None
-    descricao_padrao = ""
-
-    if isinstance(dados, dict):
-        cliente_id_alerta = dados.get("cliente_id")
-        cliente_nome_alerta = dados.get("cliente_nome")
-        descricao_padrao = dados.get("descricao", "")
-
-        if cliente_id_alerta and cliente_nome_alerta:
-            cliente_padrao = f"{cliente_id_alerta} - {cliente_nome_alerta}"
-
-    index_cliente = (
-        lista_clientes.index(cliente_padrao)
-        if cliente_padrao in lista_clientes
-        else 0
-    )
 
     # ---------- FORMULÁRIO ----------
     with st.form("form_agenda", clear_on_submit=True):
         data = st.date_input("Data", value=date.today())
         horario = st.text_input("Horário")
 
-        cliente_label = st.selectbox(
-            "Cliente",
-            lista_clientes,
-            index=index_cliente
-        )
-
+        cliente_label = st.selectbox("Cliente", list(clientes_dict.keys()))
         cliente_id = clientes_dict[cliente_label]
         cliente_nome = cliente_label.split(" - ", 1)[1]
 
-        descricao = st.text_input(
-            "Descrição",
-            value=descricao_padrao
-        )
+        descricao = st.text_input("Descrição")
+        valor = st.number_input("Valor (R$)", min_value=0.0, step=10.0)
+        status = st.selectbox("Status", ["Agendado", "Confirmar Agendamento", "Concluída"])
 
-        valor = st.number_input(
-            "Valor (R$)",
-            min_value=0.0,
-            step=10.0
-        )
+        salvar = st.form_submit_button("Salvar Agenda")
 
-        status = st.selectbox(
-            "Status",
-            ["Agendado", "Confirmar Agendamento", "Concluída"]
-        )
-
-        salvar = st.form_submit_button("Salvar")
-
-    # ---------- SALVAR ----------
     if salvar:
-        inserir_agenda(
-            data,
-            horario,
-            cliente_nome,
-            cliente_id,
-            descricao,
-            valor,
-            status.lower()
-        )
-
-        # limpa o estado do alerta
-        st.session_state.agendar_alerta = None
-
+        inserir_agenda(data, horario, cliente_nome, cliente_id, descricao, valor, status.lower())
         st.success("Agendamento salvo!")
         st.rerun()
 
-    # ---------- LISTAGEM ----------
+    # ---------- CARDS ----------
     st.divider()
     st.subheader("📋 Agenda Cadastrada")
-    st.dataframe(listar_agenda(), use_container_width=True)
+
+    df_agenda = listar_agenda()
+
+    if df_agenda.empty:
+        st.info("Nenhum agendamento.")
+    else:
+        for _, row in df_agenda.iterrows():
+            cor = STATUS_CORES.get(row["status"], "#E0E0E0")
+
+            st.markdown(
+                f"""
+                <div style="
+                    border-left:6px solid {cor};
+                    padding:12px;
+                    margin-bottom:12px;
+                    background:#f9f9f9;
+                    border-radius:8px;
+                ">
+                <b>{row['cliente']}</b><br>
+                {row['descricao']}<br>
+                📅 {row['data']} ⏰ {row['horario']}<br>
+                💰 R$ {row['valor']:,.2f}<br>
+                <b>Status:</b> {row['status']}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+            with st.form(f"status_{row['id']}"):
+                novo_status = st.selectbox(
+                    "Atualizar status",
+                    ["Agendado", "Confirmar Agendamento", "Concluída"],
+                    index=["agendado", "confirmar agendamento", "concluída"].index(row["status"])
+                )
+                atualizar = st.form_submit_button("Atualizar")
+
+                if atualizar:
+                    atualizar_status_agenda(row["id"], novo_status.lower())
+                    if novo_status.lower() == "concluída":
+                        if not servico_existe(
+                            row["cliente_id"],
+                            row["descricao"],
+                            row["data"]
+                        ):
+                            inserir_servico(
+                                row["cliente_id"],
+                                row["descricao"],
+                                row["valor"],
+                                row["data"]
+                            )
+
+                    st.success("Status atualizado!")
+                    st.rerun()  
+
 
 # =================================================
 # ================= AGENDA MENSAL =================
